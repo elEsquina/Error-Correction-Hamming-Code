@@ -1,0 +1,623 @@
+\documentclass[11pt]{article}
+
+% Language and font encoding
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+
+% Math packages
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{mathtools}
+
+% Code listings
+\usepackage{listings}
+\usepackage[table]{xcolor}
+
+% Table packages
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{float}
+% Hyperlinks
+\usepackage{hyperref}
+
+% Citations and bibliography
+\usepackage{cite}
+\usepackage{natbib}
+
+% Algorithms
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+% Miscellaneous
+\usepackage{url}
+\usepackage{fancyvrb}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{comment}
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    urlcolor=blue,
+}
+\lstset{
+    language=C,
+    basicstyle=\ttfamily\footnotesize,
+    keywordstyle=\color{blue},
+    stringstyle=\color{red},
+    commentstyle=\color{green!60!black},
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    stepnumber=1,
+    numbersep=5pt,
+    backgroundcolor=\color{gray!10},
+    showspaces=false,
+    showstringspaces=false,
+    tabsize=4,
+    breaklines=true,
+    breakatwhitespace=true,
+    escapeinside={\%*}{*)}
+}
+
+\lstdefinelanguage{RISC-V}{
+  morekeywords={la, li, jal, jr, add, sub, mul, div, rem, and, or, xor, sll, srl, sra, lui, auipc, 
+               addi, slti, sltiu, andi, ori, xori, slli, srli, srai, lb, lh, lw, lbu, lhu, sb, sh, sw, 
+               beq, bne, blt, bge, bltu, bgeu, j, jalr, ecall, ret, nop, mv, seqz, snez, sltz, sgtz, not, beqz},
+  keywordstyle=\color{blue},
+  comment=[l]{#},
+  commentstyle=\color{gray},
+  morecomment=[l]{//},
+  stringstyle=\color{red},
+  basicstyle=\ttfamily,
+  showstringspaces=false
+}
+
+\begin{document}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[height=2cm]{school_logo.png}
+\end{figure}
+
+\title{Hamming Code Error correction implementation and translation to RISC-V Assembly}
+\author{Othmane AZOUBI}
+\maketitle
+
+\begin{center}
+othmane.azoubi@um6p.ma
+\end{center}
+
+\vspace*{\fill}
+
+\begin{center}
+\section*{Preface}
+\large
+This is a report on the Computer Organization and Architecture second assignment supervised by Professor Mohammed ATIBI. 
+\newline 
+After extensive research from various sources mentioned at the bottom of this report, (I have written this to explain what Hamming error-correcting codes are.) I've defined all the tools and algorithms to better justify my implementation choices in RISC-V Assembly.
+\end{center}
+
+\vspace*{\fill}
+
+\newpage
+
+\section*{I. Introduction}
+Hamming codes belong to a group of linear error-correcting codes, which were conceived by Richard Hamming back in 1950. Although there are now more sophisticated methods available, Hamming's work was pioneering. He was the first to really tackle the challenge of error detection and correction in data transmission and storage. This laid the groundwork for ensuring data integrity, even when dealing with noisy channels.
+\newline
+In this report, we're going to explore Hamming code. It's a method for fixing errors in data that was created by Richard Hamming back in 1950. Hamming code is super important for ensuring data accuracy in digital communication and storage systems where the channels are noisy. Even though there are fancier ways to fix errors nowadays, Hamming's work still forms the basis of much of what we do in the field.
+\newline
+Throughout this report, we'll delve into the history of Hamming code, explain how it works mathematically, and walk through a basic implementation in RISC V Assembly while explaining the algorithms used.
+
+\section*{II. History}
+Richard Hamming, the inventor of Hamming codes, worked at Bell Labs in the late 1940s on the Bell Model V computer, an electromechanical relay-based machine with cycle times in seconds. Input was fed in on punched paper tape, seven-eighths of an inch wide, which had up to six holes per row. During weekdays, when errors in the relays were detected, the machine would stop and flash lights so that the operators could correct the problem. During after-hours periods and on weekends, when there were no operators, the machine simply moved on to the next job.
+\newline
+Hamming worked on weekends and grew increasingly frustrated with having to restart his programs from scratch due to detected errors. In a taped interview, Hamming said, "And so I said, 'Damn it, if the machine can detect an error, why can't it locate the position of the error and correct it?'". Over the next few years, he worked on the problem of error-correction, developing an increasingly powerful array of algorithms. In 1950, he published what is now known as Hamming code, which remains in use today in applications such as ECC memory.
+
+\section*{III. Former definitions}
+Before we discuss how the Hamming code algorithm works, first we need to define some concepts, helper algorithms and tools to aid us:
+
+\subsection*{1. Parity bits}
+\textbf{Parity:} If counting the number of ones in your binary sequence results to be an even number, we say that the total parity is even. Otherwise, we say it's odd
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{0.4\textwidth}
+        \centering
+        \begin{tabular}{|c|c|c|c|}
+            \hline
+            1 & 0 & 0 & 1 \\
+            \hline
+            0 & 1 & 0 & 1 \\
+            \hline
+            1 & 1 & 0 & 0 \\
+            \hline
+            0 & 0 & 1 & 1 \\
+            \hline
+        \end{tabular}
+        \caption{Example of an even block}
+        \label{fig:random_chart}
+    \end{subfigure}
+    \begin{subfigure}{0.4\textwidth}
+        \centering
+        \begin{tabular}{|c|c|c|c|}
+            \hline
+            0 & 1 & 1 & 0 \\
+            \hline
+            1 & 0 & 1 & 0 \\
+            \hline
+            1 & 0 & 0 & 0 \\
+            \hline
+            0 & 1 & 0 & 1 \\
+            \hline
+        \end{tabular}
+        \caption{Example of an odd block}
+        \label{fig:even_parity}
+    \end{subfigure}
+    \caption{Examples of parity}
+    \label{fig:example_even_parity}
+\end{figure} $\\$
+\textbf{Parity bit:} Is a bit in a block of binary, that helps us detect and correct errors in transmitted data. It always ensures that the total number of bits (including the parity bit itself) is always even.
+
+\subsection*{2. Power of two check}
+A power of two is a number that has only a single bit in it. This could be easily proven by the fact that $2^k = \underbrace{2 \times 2 \times \ldots \times 2}_{k\text{ times}}$ is equivalent to 1 ($2^0$) being bit shifted $k$ times to the left $\underbrace{10\ldots\ldots\ldots00_2}_{k \text{times}}$. This observation leads us to conclude that $2^k - 1 = \underbrace{011\ldots\ldots\ldots11_2}_{k \text{ times}}$. 
+\newline
+Thus, $\forall k \in \mathbb{N}$ $(2^k) \& (2^k - 1) = 0$. 
+Determining whether a number is a power of two, will help us knowing the positions of parity bits since in Hamming code they are positioned in bits where the position is a power of two.
+
+\subsection*{3. Error Code, Detection and Correction}
+It's the code that is made out of $C = (C_k \ldots C_2 C_1 C_0)_2$, with $C_i$ $(0\leq i \leq k)$ being the parity of the region that contains the $i-th$ parity bit (the sub-block that skips $i$ bits checks $i$ bits after the parity bit).
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.4\textwidth}
+        \centering
+        \begin{tabular}{|c|c|c|c|c|c|c|c|}
+            \hline
+            1 & \cellcolor{blue!50}1 & 0 & \cellcolor{black!30}1 & 1 & \cellcolor{black!30}0 & 0 & \cellcolor{black!30}1 \\
+            \hline
+            0 & \cellcolor{black!30}1 & 0 & \cellcolor{black!30}0 & 1 & \cellcolor{black!30}1 & 0 & \cellcolor{black!30}0 \\
+            \hline
+            1 & \cellcolor{black!30}1 & 0 & \cellcolor{black!30}1 & 1 & \cellcolor{black!30}0 & 0 & \cellcolor{black!30}1 \\
+            \hline
+            1 & \cellcolor{black!30}1 & 0 & \cellcolor{black!30}1 & 0 & \cellcolor{black!30}1 & 0 & \cellcolor{black!30}1 \\
+            \hline
+        \end{tabular}
+        \caption{$C_1$ sub-block(checks 1 skips 1)}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.4\textwidth}
+        \centering
+        \begin{tabular}{|c|c|c|c|c|c|c|c|}
+            \hline
+            1 & 1 & \cellcolor{blue!50}0 & \cellcolor{black!30}1 & 1 & 0 & \cellcolor{black!30}0 & \cellcolor{black!30}1 \\
+            \hline
+            0 & 1 & \cellcolor{black!30}0 & \cellcolor{black!30}0 & 1 & 1 & \cellcolor{black!30}0 & \cellcolor{black!30}0 \\
+            \hline
+            1 & 1 & \cellcolor{black!30}0 & \cellcolor{black!30}1 & 1 & 0 & \cellcolor{black!30}0 & \cellcolor{black!30}1 \\
+            \hline
+            1 & 1 & \cellcolor{black!30}0 & \cellcolor{black!30}1 & 0 & 1 & \cellcolor{black!30}0 & \cellcolor{black!30}1 \\
+            \hline
+        \end{tabular}
+        \caption{$C_2$ sub-block(checks 2 skips 2)}
+    \end{subfigure}
+    \caption{32-bit blocks with $C_1$ and $C_2$ sub-blocks highlighted}
+    \label{fig:32bit_hamming}
+\end{figure}
+
+A received message is called single-bit erroneous when $C \neq 0$. We can locate the position of such bit by computing $C - 1$, and thus correct a received message $X$ by inverting its $(C - 1)$-th bit using: $X \oplus (1 << (C - 1))$.
+
+\subsection*{4. Brian Kernighan's Algorithm}
+First, let's try to turn off the rightmost set bit of a number $n$. To do this, we will consider two cases:
+
+\begin{itemize}
+    \item \textbf{$n$ is even:} In this case, $n$ is divisible by $2^k$ with $k \in \mathbb{N}$. $n$ is written in the format $n = \ldots\ldots\underbrace{10\ldots00}_{\text{k times}}_2$, and $n-1 = \ldots\ldots\underbrace{01\ldots11}_{\text{$k$ times}}_2$. 
+    \newline
+    We conclude that $n \& (n - 1)$ is $n$ but with the rightmost set bit turned off.
+    \item \textbf{$n$ is odd:} In this case, $n-1$ is $n$ but with the rightmost set bit turned off. This can also be written as $n \& (n - 1)$.
+\end{itemize}
+\newline
+\textbf{Conclusion:} The expression $n \& (n - 1)$ can be used to turn off the rightmost set bit of a number $n$.
+\begin{figure}[H]
+    \centering
+    \fbox{
+        \begin{minipage}{0.75\textwidth}
+            For example, consider the number $52 = 0011~0100_2$:
+            \[
+            \begin{array}{c@{\;}c}
+            n         & = 0011~0100 \\
+            n-1       & = 0011~0011 \\
+            \hline
+            n \& (n-1) & = 0011~0000 \\
+            \end{array}
+            \]
+        \end{minipage}
+    }
+    \caption{Example taken from cp-algorithms.com}
+    \label{fig:example_number}
+\end{figure}
+
+We can count the number of '1' in $n$ using the above expression. The idea is to keep turning off the rightmost set bit (after counting it), till $n = 0$. Here is an implementation:
+
+\begin{lstlisting}[language=C]
+int countSetBits(int n) {
+    int count = 0;
+    while (n) {
+        n = n & (n - 1);
+        count++;
+    }
+    return count;
+}
+\end{lstlisting}
+
+This algorithm will help us determine the parity of a binary block by checking the parity of the returned "count".
+
+\section*{IV. Hamming code algorithm (32bits)}
+In this section, I will use all the tools and algorithms explained above to construct the Hamming code algorithm. I will first provide the algorithm in pseudocode, and then write its RISC-V counterpart.
+But first, I will give the definitions of the $get\_message()$ and $parity$ functions (Section III.4) in RISC-V:
+
+\begin{lstlisting}[language=RISC-V]
+parity: 
+    # n = a0 and return value in a7
+    li a7, 0
+    loop_parity:
+        beqz a0, end_loop_parity
+            addi a7, a7, 1
+            addi t0, a0, -1
+            and a0, a0, t0
+        j loop_parity
+
+    end_loop_parity:
+    andi a7, a7, 1 
+    jr ra
+
+
+get_message:
+    #matricule = a0, r = a1 and return value in a7
+    xori t0, a0, 0xFFFFFFFF
+
+    sll t1, t0, a1  # (msg << r)
+    li t3, 32 
+    sub t2, t3, a1  # 32 - r
+    srl t2, t0, t2 # (msg >> (32 - r))
+    or t0, t1, t2  # msg = (msg << r) | (msg >> (32 - r))
+
+    li t3, 0x00FFFFFF 
+    and a7, t0, t3
+    jr ra
+\end{lstlisting}
+
+
+\subsection*{1. Hamming map:}
+It's the process of taking 24bits of data and placing them in a 32bits message while keeping away from bits that represents powers of 2 (Sections III.1 and III.2). Let's consider the following example:
+\begin{figure}[H]
+    \centering
+    \includegraphics[height=5cm]{hammap.png}
+    \caption{Example hamming map}
+\end{figure}
+
+The algorithm behind it is straight forward:
+\begin{algorithm}[H]
+\caption{Hamming Map}
+\begin{algorithmic}[1]
+\Function{hamming\_map}{msg}
+    \State $hamming \gets 0$
+    \State $bit\_position \gets 0$
+    \For{$i \gets 0$ to $31$}
+        \If {$i \neq 0$ \textbf{and} $(i \& (i-1)) \neq 0$}\Comment skipping parity bit positions
+            \If{$msg \& (1 \ll bit\_position)$}
+                \State $hamming \gets hamming \ | \ (1 \ll 31)$
+            \EndIf
+            \State $bit\_position \gets bit\_position + 1$
+        \EndIf
+        \State $hamming \gets hamming \gg 1$
+    \EndFor
+    \State \Return $hamming$
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+RISC-V Implementation: 
+
+\begin{lstlisting}[language=RISC-V]
+hamming_map:
+    #a0 = data and return value in a7
+    li t0, 0 #current position in the data
+    li a7, 0  
+
+    #a7 = hamming 
+    #t0 = bit_position
+    #a0 = msg 
+
+    li t1 , 0
+    loop_map: 
+        
+        #Parity bits checking:
+        beqz t1, map_skip_parity # check if t1 == 0
+        addi t2, t1, -1
+        and t2, t1, t2
+        beqz t2, map_skip_parity # check if (t1 & (t1 - 1)) == 0
+        
+        li t2, 1
+        sll t2, t2, t0
+        and t2, a0, t2 # t2 = msg & (1 << bit_position)
+        beq t2, x0, map_zero
+            li t2, 1  
+            slli t2, t2, 31
+            or a7, a7, t2 # hamming = hamming | (1 << (bit_position))
+        map_zero: 
+        addi t0, t0, 1  # bit_position++
+
+        j map_skip_parity_end
+        map_skip_parity: 
+            li t2, 0x7FFFFFFF 
+            and a7, a7, t2 # Forcing parity bits to 0
+        map_skip_parity_end:
+
+        srli a7, a7, 1 # Shift hamming to the right so we can process the next bit 
+        
+    addi t1, t1, 1 
+    li t2, 32
+    bne t1, t2, loop_map
+
+    jr ra
+\end{lstlisting}
+
+
+\subsection*{2. Hamming encode:}
+It's the process of setting the parity bits in our previously obtained Hamming map. Where each parity bit is responsible over the parity of it's sub-block (Consider Figure 2 as an example), Here is a quick algorithm to achieve the encoding:
+\begin{algorithm}[H]
+\caption{Hamming Encode}
+\begin{algorithmic}[1]
+\Function{hamming\_encode}{map}
+    \State \textit{code} $\gets$ \textit{map} \Comment{Initialize code with map}
+    \State \textit{p} $\gets$ \textsc{parity}(\textit{map} \& 0x55555554)
+    \State \textit{code} $\gets$ \textit{code} $|$ \textit{p}
+    \State \textit{p} $\gets$ \textsc{parity}(\textit{map} \& 0x66666664)
+    \State \textit{code} $\gets$ \textit{code} $|$ (\textit{p} $<<$ 1)
+    \State \textit{p} $\gets$ \textsc{parity}(\textit{map} \& 0x78787870)
+    \State \textit{code} $\gets$ \textit{code} $|$ (\textit{p} $<<$ 3)
+    \State \textit{p} $\gets$ \textsc{parity}(\textit{map} \& 0x7F807F00)
+    \State \textit{code} $\gets$ \textit{code} $|$ (\textit{p} $<<$ 7)
+    \State \textit{p} $\gets$ \textsc{parity}(\textit{map} \& 0x7FFF0000)
+    \State \textit{code} $\gets$ \textit{code} $|$ (\textit{p} $<<$ 15)
+    \State \Return \textit{code}
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+RISC-V Implementation:
+
+\begin{lstlisting}[language=RISC-V]
+hamming_encode:
+    #a0 = map and return value in a7
+    mv t6, a0 # return
+    mv t5, a0 # map
+    mv t0, x0 # Parity bit
+    
+    li t3, 0x55555554 
+    and a0, t5, t3 # map & 0x55555554
+
+    addi sp, sp, -4
+    sw ra, 0(sp)
+    jal parity # parity(map & 0x55555554)
+    lw ra, 0(sp)
+    addi sp, sp, 4
+
+    or t6, t6, a7
+
+    li t3, 0x66666664
+    and a0, t5, t3 # map & 0x66666664
+    
+    addi sp, sp, -4
+    sw ra, 0(sp)
+    jal parity # parity(map & 0x66666664)
+    lw ra, 0(sp)
+    addi sp, sp, 4
+
+    slli a7, a7, 1
+    or t6, t6, a7
+
+    li t3, 0x78787870
+    and a0, t5, t3 # map & 0x78787870
+    
+    addi sp, sp, -4
+    sw ra, 0(sp)
+    jal parity # parity(map & 0x78787870)
+    lw ra, 0(sp)
+    addi sp, sp, 4
+
+    slli a7, a7, 3
+    or t6, t6, a7
+
+    li t3, 0x7F807F00
+    and a0, t5, t3 # map & 0x7F807F00
+
+    addi sp, sp, -4
+    sw ra, 0(sp)
+    jal parity # parity(map & 0x7F807F00)
+    lw ra, 0(sp)
+    addi sp, sp, 4
+
+    slli a7, a7, 7
+    or t6, t6, a7
+
+    li t3, 0x7FFF0000
+    and a0, t5, t3 # map & 0x7FFF0000
+
+    addi sp, sp, -4
+    sw ra, 0(sp)
+    jal parity # parity(map & 0x7FFF0000)
+    lw ra, 0(sp)
+    addi sp, sp, 4
+
+    slli a7, a7, 15
+    or t6, t6, a7
+
+    mv a7, t6
+    jr ra
+\end{lstlisting} 
+
+\subsection*{3. Hamming decode}
+After receiving the message we compute the parity of all sub-blocks to create an Error code $C$ like discussed in Section III.3 the algorithm behind it is also simple: 
+
+\begin{algorithm}[H]
+\caption{Hamming Decode}
+\begin{algorithmic}[1]
+\Function{hamming\_decode}{code}
+    \State \textit{map} $\gets$ 0 \Comment{Initialize map to 0}
+    \State \textit{c0} $\gets$ \textsc{parity}(\textit{code} \& 0x55555555)
+    \State \textit{c1} $\gets$ \textsc{parity}(\textit{code} \& 0x66666666)
+    \State \textit{c2} $\gets$ \textsc{parity}(\textit{code} \& 0x78787878)
+    \State \textit{c3} $\gets$ \textsc{parity}(\textit{code} \& 0x7F807F80)
+    \State \textit{c4} $\gets$ \textsc{parity}(\textit{code} \& 0x7FFF8000)
+    \State \Return \textit{c0} $|$ (\textit{c1} $<<$ 1) $|$ (\textit{c2} $<<$ 2) $|$ (\textit{c3} $<<$ 3) $|$ (\textit{c4} $<<$ 4)
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+RISC-V Implementation:
+
+\begin{lstlisting}[language=RISC-V]
+hamming_decode:
+    #a0 = code and return value in a7
+    mv t6, a0 
+    li t5, 0 # Error code
+
+    li t0, 0x55555555
+    li t1, 0x66666666
+    li t2, 0x78787878
+    li t3, 0x7F807F80
+    li t4, 0x7FFF8000 
+
+    and t0, t6, t0
+    and t1, t6, t1
+    and t2, t6, t2
+    and t3, t6, t3
+    and t4, t6, t4
+
+    addi sp, sp, -4
+    sw ra, 0(sp)
+
+    mv a0, t0
+    jal parity
+    slli a7, a7, 0
+    or t5, t5, a7
+
+    mv a0, t1
+    jal parity
+    slli a7, a7, 1
+    or t5, t5, a7
+
+    mv a0, t2
+    jal parity
+    slli a7, a7, 2
+    or t5, t5, a7
+
+    mv a0, t3
+    jal parity
+    slli a7, a7, 3
+    or t5, t5, a7
+
+    mv a0, t4
+    jal parity
+    slli a7, a7, 4
+
+    or t5, t5, a7
+
+    lw ra, 0(sp)
+    addi sp, sp, 4
+
+    beqz t5, no_error
+        li t1, 1
+        addi t0, t5, -1
+        sll t1, t1, t0
+        xor t6, t6, t1
+    no_error:
+
+
+    mv a7, t6
+    jr ra
+\end{lstlisting}
+
+\subsection*{4. Hamming unmap}
+It's the process of applying the error correction formula, as seen in Section III.3, and extracting the original 24-bit data from the 32-bit received message after correction. Here is the algorithm behind it:
+
+\begin{algorithm}
+\caption{haming\_unmap}
+\begin{algorithmic}[1]
+\Function{haming\_unmap}{map}
+    \State \textit{hamming} $\gets$ \textit{map} \Comment{Initialize hamming with map}
+    \State \textit{matricule} $\gets 0$
+    \State \textit{bit\_position} $\gets 0$
+    \For{\textit{i} $\gets 0$ to $31$}
+        \If{($(\textit{i} + 1) \& \textit{i}) == 0$}
+            \State \textbf{continue}
+        \Else
+            \If{(\textit{hamming} \& (1 $\ll$ \textit{i}))}
+                \State \textit{matricule} $\gets$ \textit{matricule} $|$ (1 $\ll$ \textit{bit\_position})
+            \EndIf
+            \State \textit{bit\_position} $\gets$ \textit{bit\_position} + 1
+        \EndIf
+    \EndFor
+    \State \Return \textit{matricule}
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+RISC-V Implementation:
+
+\begin{lstlisting}[language=RISC-V]
+hamming_unmap:
+    # a0 = map and return value in a7
+    li t0, 0 # bit position
+    li a7, 0 # matricule
+    # a0 = hamming 
+
+    li t1, 0 # index
+    loop_unmap: 
+
+        # Parity bits checking:
+        addi t2, t1, 1
+        and t2, t1, t2
+        beqz t2, unmap_skip_parity # check if (t1 & (t1 - 1)) == 0
+
+        li t2, 1
+        sll t3, t2, t1 # t3 = hamming & (1 << i)
+        and t3, a0, t3 
+        beqz t3, unmap_zero
+            li t3, 1  
+            sll t3, t3, t0 # (1 << bit_position)
+            or a7, a7, t3 # matricule = matricule | (1 << bit_position)
+        unmap_zero: 
+        addi t0, t0, 1  # bit_position++
+
+        unmap_skip_parity: 
+
+        addi t1, t1, 1 
+        li t2, 32
+        bne t1, t2, loop_unmap
+
+    jr ra
+\end{lstlisting}
+
+
+\section*{V. Putting the pieces together (Appendix)}
+In this section, I will present the final implementation of the Hamming code in RISC-V Assembly. This will involve merging the code snippets from Section 4 and reproducing the same output screen as provided at the end of the assignment.
+
+
+
+\newpage
+\section*{Sources}
+\begin{itemize}
+    \item \url{https://cp-algorithms.com/algebra/bit-manipulation.html}
+    \item \url{https://www.youtube.com/watch?v=X8jsijhllIA}.
+    \item \url{https://en.wikipedia.org/wiki/Hamming_code}.
+\end{itemize}
+
+
+
+\end{document}
