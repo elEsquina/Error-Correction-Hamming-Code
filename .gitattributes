@@ -1,0 +1,7 @@
+*.html linguist-detectable=false
+*.json linguist-detectable=false
+*.asset linguist-detectable=false
+*.shader linguist-detectable=false
+*.cginc linguist-detectable=false
+*.cls linguist-detectable=false
+*.tex linguist-detectable=false
